@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#0f766e"/>
+  <path d="M32 8l18 7v15c0 12-7.6 21.8-18 26-10.4-4.2-18-14-18-26V15l18-7z" fill="#ffffff" opacity="0.16"/>
+  <path d="M32 13l13 5v12c0 8.6-5.1 16-13 19.8C24.1 46 19 38.6 19 30V18l13-5z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <text x="32" y="38" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" fill="#ffffff">SG</text>
+</svg>

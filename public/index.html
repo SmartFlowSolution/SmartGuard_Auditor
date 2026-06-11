@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SmartGuard Auditor</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="stylesheet" href="/styles.css?v=6" />
+  </head>
+  <body>
+    <main class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <span>SG</span>
+          <div>
+            <h1>SmartGuard Auditor</h1>
+            <small>Local and live blockchain security analysis powered by LLMs</small>
+          </div>
+        </div>
+
+        <div class="mode-switch" role="tablist" aria-label="Work mode">
+          <button id="liveModeButton" class="active" type="button">Live blockchain</button>
+          <button id="fileModeButton" type="button">File audit</button>
+        </div>
+
+        <div id="monitorStatusCard" class="monitor-status checking" aria-live="polite">
+          <span id="monitorStatusDot" aria-hidden="true"></span>
+          <div>
+            <strong id="monitorStatusLabel">Checking monitoring</strong>
+            <small id="monitorStatusMeta">Fetching API status</small>
+          </div>
+        </div>
+
+        <section id="fileControls" class="control-flow">
+          <label class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept=".sol,.txt" />
+            <strong>Drop a .sol file</strong>
+            <span>or click to choose a file</span>
+          </label>
+
+          <label class="toggle">
+            <input id="llmToggle" type="checkbox" checked />
+            <span>Use local Ollama</span>
+          </label>
+
+          <label class="field">
+            Model Ollama
+            <input id="modelInput" value="llama3.2:latest" />
+          </label>
+
+          <button id="analyzeButton">Analyze contract</button>
+          <button id="sampleButton" class="secondary">Load Bank sample</button>
+        </section>
+
+        <section id="liveControls" class="control-flow active">
+          <label class="field">
+            RPC URL
+            <input id="rpcUrlInput" value="https://rpc.flashbots.net" />
+          </label>
+          <label class="field">
+            RPC preset
+            <select id="rpcPresetInput">
+              <option value="https://rpc.flashbots.net" selected>Ethereum Flashbots</option>
+              <option value="https://rpc.mevblocker.io">Ethereum MevBlocker</option>
+              <option value="https://eth.drpc.org">Ethereum DRPC</option>
+              <option value="https://eth-mainnet.public.blastapi.io">Ethereum Blast public</option>
+              <option value="https://1rpc.io/eth">Ethereum 1RPC</option>
+              <option value="https://ethereum.blockpi.network/v1/rpc/public">Ethereum BlockPI</option>
+              <option value="https://eth.llamarpc.com">Ethereum LlamaRPC</option>
+              <option value="https://ethereum-rpc.publicnode.com">Ethereum PublicNode</option>
+              <option value="https://rpc.ankr.com/eth">Ethereum Ankr public</option>
+              <option value="https://ethereum-sepolia-rpc.publicnode.com">Sepolia PublicNode</option>
+            </select>
+          </label>
+          <div class="live-grid">
+            <label class="field">
+              Chain ID
+              <input id="chainIdInput" value="1" inputmode="numeric" />
+            </label>
+            <label class="field">
+              Interval
+              <input id="pollIntervalInput" value="20" inputmode="numeric" />
+            </label>
+          </div>
+          <div class="button-row">
+            <button id="startLiveButton" type="button">Start live</button>
+            <button id="stopLiveButton" type="button" class="secondary">Stop</button>
+          </div>
+          <label class="toggle">
+            <input id="liveLlmToggle" type="checkbox" checked />
+            <span>Analyze live with Ollama</span>
+          </label>
+          <div class="live-grid">
+            <label class="field">
+              Lookback blocks
+              <input id="lookbackBlocksInput" value="100" inputmode="numeric" />
+            </label>
+            <label class="field">
+              Start block
+              <input id="startBlockInput" placeholder="Latest" inputmode="numeric" />
+            </label>
+          </div>
+          <label class="field">
+            Etherscan API key
+            <input id="etherscanKeyInput" type="password" placeholder="Optional" />
+          </label>
+          <label class="field">
+            Model live LLM
+            <input id="liveModelInput" value="llama3.2:latest" />
+          </label>
+          <button id="testRpcButton" type="button" class="secondary">Test RPC</button>
+          <button id="clearAlertsButton" type="button" class="secondary">Clear alerts</button>
+        </section>
+
+        <p id="statusText" class="status">
+          Choose a mode. File audit analyzes pasted Solidity, while the live monitor watches the blockchain.
+        </p>
+      </aside>
+
+      <section id="fileView" class="workspace">
+        <section class="editor-panel">
+          <div class="panel-head">
+            <h2>Solidity code</h2>
+            <span>Local audit</span>
+          </div>
+          <textarea id="editor" spellcheck="false" placeholder="contract Bank { ... }"></textarea>
+        </section>
+
+        <section class="report-panel">
+          <div class="report-head">
+            <div>
+              <span class="eyebrow">Report</span>
+              <h2 id="reportTitle">No analysis</h2>
+            </div>
+            <strong id="riskBadge" class="risk info">INFO</strong>
+          </div>
+
+          <div class="metrics">
+            <div><strong id="criticalCount">0</strong><span>Critical</span></div>
+            <div><strong id="highCount">0</strong><span>High</span></div>
+            <div><strong id="mediumCount">0</strong><span>Medium</span></div>
+            <div><strong id="lowCount">0</strong><span>Low</span></div>
+            <div><strong id="infoCount">0</strong><span>Info</span></div>
+          </div>
+
+          <div class="section-title">
+            <h2>Findings</h2>
+          </div>
+          <div id="findingsList" class="findings empty">
+            <p>Findings will appear here, for example CRITICAL Possible Reentrancy.</p>
+          </div>
+
+          <div class="section-title">
+            <h2>LLM comment</h2>
+          </div>
+          <pre id="llmSummary" class="llm-box">No comment.</pre>
+
+          <div class="section-title">
+            <h2>Functions</h2>
+          </div>
+          <div id="functionList" class="functions empty">
+            <p>The parser will show detected Solidity functions here.</p>
+          </div>
+        </section>
+      </section>
+
+      <section id="liveView" class="workspace live-workspace active">
+        <section class="report-panel">
+          <div id="liveStats" class="live-stats" aria-live="polite">
+            <div><strong>-</strong><span>Last block</span></div>
+            <div><strong>-</strong><span>Contracts checked</span></div>
+            <div><strong>-</strong><span>Pending contracts</span></div>
+            <div><strong>-</strong><span>Alert contracts</span></div>
+          </div>
+
+          <div class="section-title">
+            <h2>Live alerts</h2>
+            <span id="liveStatus">Checking monitor</span>
+          </div>
+          <div id="alertsList" class="alerts empty">
+            <p>After the monitor starts, HIGH/CRITICAL alerts for new contracts will appear here.</p>
+          </div>
+
+          <div class="section-title">
+            <h2>Recent contracts</h2>
+            <span id="contractsStatus">0 detected</span>
+          </div>
+          <div id="contractsList" class="contracts empty">
+            <p>Newly detected contracts will appear here, including contracts without verified source.</p>
+          </div>
+        </section>
+
+        <section class="detail-panel">
+          <div class="section-title">
+            <h2>Details</h2>
+            <span id="detailKind">nothing selected</span>
+          </div>
+          <div id="detailBox" class="detail-box empty">
+            <p>Click an alert or contract to see full details.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js?v=7"></script>
+  </body>
+</html>

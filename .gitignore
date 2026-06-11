@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data
+data/*.sqlite3
+data/*.sqlite3-*
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and local process files
+*.log
+logs/
+*.pid
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.agents/
+.codex/
+
+# Node/frontend tool caches, if added later
+node_modules/
+dist/
+build/
+.parcel-cache/
