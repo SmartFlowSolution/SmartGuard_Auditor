@@ -8,8 +8,9 @@ import re
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel
 
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
@@ -17,8 +18,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class OllamaAuditConfig:
+class OllamaAuditConfig(BaseModel):
     model: str = DEFAULT_MODEL
     url: str = OLLAMA_URL
     timeout: int = 180
@@ -28,8 +28,7 @@ class OllamaAuditConfig:
     snippet_radius: int = 1200
 
 
-@dataclass
-class OllamaAuditResult:
+class OllamaAuditResult(BaseModel):
     summary: str | None
     status: str
     error: str | None = None

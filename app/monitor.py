@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import logging
 import os
 import threading
 import time
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from app.analyzer import analyze_source
 from app.blockchain import (
@@ -30,8 +31,7 @@ MAX_STORED_SOURCE_CHARS = int(os.getenv("MAX_STORED_SOURCE_CHARS", "120000"))
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class MonitorConfig:
+class MonitorConfig(BaseModel):
     rpc_url: str | None
     chain_id: int = 1
     etherscan_api_key: str | None = None
@@ -43,8 +43,7 @@ class MonitorConfig:
     llm_model: str | None = None
 
 
-@dataclass
-class LiveAlert:
+class LiveAlert(BaseModel):
     id: int
     created_at: str
     address: str
@@ -57,8 +56,7 @@ class LiveAlert:
     report: dict[str, Any]
 
 
-@dataclass
-class LiveSeenContract:
+class LiveSeenContract(BaseModel):
     address: str
     chain_id: int
     block_number: int
@@ -73,11 +71,10 @@ class LiveSeenContract:
     balance_eth: str | None = None
     report: dict[str, Any] | None = None
     tries: int = 0
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-@dataclass
-class MonitorState:
+class MonitorState(BaseModel):
     running: bool = False
     last_block: int | None = None
     latest_seen_block: int | None = None
@@ -86,7 +83,7 @@ class MonitorState:
     pending_unverified: int = 0
     skipped_blocks: int = 0
     last_error: str | None = None
-    config: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class BlockchainMonitor:
@@ -174,7 +171,7 @@ class BlockchainMonitor:
 
     def status(self) -> dict:
         with self._lock:
-            payload = asdict(self._state)
+            payload = self._state.model_dump()
             payload["alerts"] = len(self._store.recent_alerts())
             payload.update(self._store.counts())
             return payload
@@ -186,6 +183,7 @@ class BlockchainMonitor:
         return self._store.recent_contracts()
 
     def _run(self, config: MonitorConfig) -> None:
+        """Drive the live polling loop, including RPC failover and pending-source retries."""
         try:
             candidates = rpc_candidates(config.chain_id, config.rpc_url)
             config.rpc_url = self._first_working_rpc(candidates)
@@ -262,6 +260,7 @@ class BlockchainMonitor:
         return self._first_working_rpc(rotated)
 
     def _scan_block(self, config: MonitorConfig, block_number: int) -> None:
+        """Scan one block for contract creations and persist the block cursor."""
         if self._store.has_block(config.chain_id, block_number):
             self._increment("skipped_blocks")
             logger.debug("block skipped already scanned chain_id=%s block=%s", config.chain_id, block_number)
@@ -308,6 +307,7 @@ class BlockchainMonitor:
         self._store.mark_block(config.chain_id, block_number, len(creations))
 
     def _audit_contract(self, config: MonitorConfig, contract: dict[str, Any]) -> None:
+        """Fetch verified source for a new contract and create reports, alerts, or retry state."""
         address = contract["address"]
         logger.info("contract audit start chain_id=%s address=%s", config.chain_id, address)
         source = fetch_contract_source(address, config.chain_id, config.etherscan_api_key)
@@ -366,6 +366,7 @@ class BlockchainMonitor:
             self._schedule_llm_analysis(config, contract, source.source, report)
 
     def _retry_pending(self, config: MonitorConfig) -> None:
+        """Re-check contracts whose verified source was unavailable on first detection."""
         for address, contract in list(self._pending.items())[:10]:
             contract["tries"] = int(contract.get("tries", 0)) + 1
             logger.debug(
@@ -501,6 +502,7 @@ class BlockchainMonitor:
         model: str | None,
         alert_key: str | None,
     ) -> None:
+        """Store an asynchronous Ollama result back into contract and alert reports."""
         logger.info("llm analysis start chain_id=%s address=%s model=%s", chain_id, address, model)
         try:
             result = summarize_with_ollama_result(source, report, model)
@@ -562,7 +564,7 @@ class BlockchainMonitor:
                 report=report,
                 tries=tries,
             )
-            self._store.upsert_contract(asdict(self._seen[address]))
+            self._store.upsert_contract(self._seen[address].model_dump())
             if len(self._seen) > 500:
                 oldest = sorted(self._seen.items(), key=lambda item: item[1].updated_at)[:100]
                 for key, _ in oldest:
@@ -610,7 +612,7 @@ class BlockchainMonitor:
         logger.debug("balance fetched chain_id=%s address=%s balance_eth=%s", config.chain_id, contract["address"], contract["balance_eth"])
 
     def _public_config(self, config: MonitorConfig) -> dict[str, Any]:
-        payload = asdict(config)
+        payload = config.model_dump()
         payload["rpc_url"] = mask_url(config.rpc_url)
         payload["etherscan_api_key"] = "***" if config.etherscan_api_key else None
         return payload

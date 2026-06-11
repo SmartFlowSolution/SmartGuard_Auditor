@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 from enum import IntEnum
 import re
 from typing import Iterable
+
+from pydantic import BaseModel, Field
 
 
 class Severity(IntEnum):
@@ -23,8 +24,7 @@ SEVERITY_LABELS = {
 }
 
 
-@dataclass
-class SolidityFunction:
+class SolidityFunction(BaseModel):
     name: str
     signature: str
     body: str
@@ -33,26 +33,24 @@ class SolidityFunction:
     visibility: str = "unknown"
 
 
-@dataclass
-class Finding:
+class Finding(BaseModel):
     severity: Severity
     title: str
     function: str
     reason: str
     recommendation: str
     evidence: str
-    references: list[str] = field(default_factory=list)
+    references: list[str] = Field(default_factory=list)
     source: str = "heuristic"
 
     def to_dict(self) -> dict:
-        payload = asdict(self)
+        payload = self.model_dump()
         payload["severity"] = SEVERITY_LABELS[self.severity]
         payload["severity_score"] = int(self.severity)
         return payload
 
 
-@dataclass
-class AnalysisReport:
+class AnalysisReport(BaseModel):
     contract_name: str
     functions: list[SolidityFunction]
     findings: list[Finding]
@@ -68,7 +66,7 @@ class AnalysisReport:
             "contract_name": self.contract_name,
             "risk": SEVERITY_LABELS[max_severity],
             "counts": counts,
-            "functions": [asdict(fn) for fn in self.functions],
+            "functions": [fn.model_dump() for fn in self.functions],
             "findings": [
                 item.to_dict()
                 for item in sorted(self.findings, key=lambda finding: finding.severity, reverse=True)
@@ -77,7 +75,13 @@ class AnalysisReport:
         }
 
 
+class AccessControlInfo(BaseModel, frozen=True):
+    kind: str
+    description: str
+
+
 def analyze_source(source: str, llm_summary: str | None = None) -> AnalysisReport:
+    """Run the complete static-analysis pass for one Solidity source bundle."""
     normalized = strip_comments(source)
     contract_name = detect_contract_name(normalized)
     functions = parse_functions(normalized)
@@ -115,6 +119,7 @@ def detect_contract_name(source: str) -> str:
 
 
 def parse_functions(source: str) -> list[SolidityFunction]:
+    """Extract Solidity function-like blocks with line ranges for UI expansion."""
     pattern = re.compile(
         r"\b(function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)[^{;]*|"
         r"constructor\s*\([^)]*\)[^{;]*|"
@@ -171,6 +176,7 @@ def detect_visibility(signature: str) -> str:
 
 
 def run_rules(source: str, functions: Iterable[SolidityFunction]) -> Iterable[Finding]:
+    """Apply source-wide and function-level heuristics while preserving finding order."""
     source_lower = source.lower()
 
     if re.search(r"\btx\.origin\b", source):
@@ -213,6 +219,7 @@ def run_rules(source: str, functions: Iterable[SolidityFunction]) -> Iterable[Fi
 
 
 def analyze_function(fn: SolidityFunction, source_lower: str) -> Iterable[Finding]:
+    """Inspect one Solidity function for withdrawal, reentrancy, and token-risk patterns."""
     body = fn.body
     visible_to_user = fn.visibility in {"public", "external"}
     external_call = has_external_value_call(body)
@@ -430,13 +437,8 @@ def assigned_from_pattern(body: str, pattern: str) -> set[str]:
     return names
 
 
-@dataclass(frozen=True)
-class AccessControlInfo:
-    kind: str
-    description: str
-
-
 def access_control_info(body: str, signature: str) -> AccessControlInfo | None:
+    """Return the strongest obvious authorization signal visible in a function."""
     text = signature + "\n" + body
 
     if re.search(r"\bonlyOwner\b", signature, re.IGNORECASE):

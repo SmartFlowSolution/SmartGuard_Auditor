@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlencode
 import urllib.error
 import urllib.request
+
+from pydantic import BaseModel
 
 
 SOURCIFY_REPOSITORY = "https://repo.sourcify.dev/contracts"
@@ -55,8 +56,7 @@ def rpc_candidates(chain_id: int, preferred: str | None = None) -> list[str]:
     return deduped
 
 
-@dataclass
-class ContractSource:
+class ContractSource(BaseModel):
     address: str
     chain_id: int
     source: str
